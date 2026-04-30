@@ -11,7 +11,8 @@ import config
 
 def run_cameras_on_trajectory(
     traj_path: str | Path,
-    m: int,
+    cams: Tuple | None = None,
+    m: int = 20,
     radius: float = 0.5,
     box_size: float = 100.0,
     seed: Optional[int] = None,
@@ -24,6 +25,8 @@ def run_cameras_on_trajectory(
     ----------
     traj_path : str or Path
         Path to a .npy file containing traj_pos with shape (T+1, N, 2).
+    cams: tuple matching id to (x, y), and r arrays. Camera generation happens only if cams is
+                None.
     m : int
         Number of cameras.
     radius : float, default 0.5
@@ -52,12 +55,15 @@ def run_cameras_on_trajectory(
 
     # Set up random cameras (but fixed for this whole run)
     rng = np.random.default_rng(seed)
-    cam_positions, cam_radii = cameras.create_cameras(
-        k=m,
-        radius=radius,
-        box_size=box_size,
-        rng=rng,
-    )
+    if cams is None:
+        cam_positions, cam_radii = cameras.create_cameras(
+            k=m,
+            radius=radius,
+            box_size=box_size,
+            rng=rng,
+        )
+    else:
+        cam_positions, cam_radii = cams[0], cams[1]
 
     records = []
 
@@ -81,12 +87,3 @@ def run_cameras_on_trajectory(
 
     df = pd.DataFrame.from_records(records, columns=["timestamp", "camera_id", "individual"])
     return df, cam_positions, cam_radii
-
-
-if __name__ == "__main__":
-    import os.path
-    sightings, _, _ = run_cameras_on_trajectory(os.path.join(config.DATA,
-        "trajectories/N10/separate/sim_000.npy"),
-        m = 9)
-    print(sightings)
-

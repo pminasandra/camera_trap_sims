@@ -1,19 +1,28 @@
+# Pranav Minasandra
+# pminasandra.github.io
+# Dec 5 2025
+
+import multiprocessing as mp
 
 import numpy as np
-import vicsek
-import vis
+
+import config
+import trajectories
+import generate_sightings
 
 if __name__ == "__main__":
-    N = 20
-    # Block-diagonal adjacency: first 10 influence only first 10; second 10 only second 10
-    A = np.zeros((N, N), dtype=bool)
-    A[:10, :10] = True
-    A[10:, 10:] = True
-    # (Diagonal is True, so each agent includes itself.)
+    print("Creating trajectories. (This might take a while)")
+    os.makedirs(base_dir, exist_ok=True)
 
-    traj, _ = vicsek.run_clustered_vicsek(
-        N, 5_000,
-        A=A,
-        seed=42  # optional: reproducible
-    )
-    vis.animate_traj(traj, interval=20, show=True)
+    tgts = []
+    for N in trajectories.population_sizes:
+        for cond in trajectories.conditions:
+            tgts.append((N, cond))
+
+    pool = mp.Pool()
+    pool.starmap(trajectories.make_traj, tgts)
+    pool.close()
+    pool.join()
+
+    print("Generating pseudocameratrap datasets.")
+    generate_sightings.generate_all_sightings(cams=generate_sightings.CAMSETS)

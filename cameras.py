@@ -3,7 +3,8 @@
 # pminasandra.github.io
 
 import numpy as np
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Iterable
+from collections.abc import Iterable as IterableObj
 
 def run_cameras(
     cam_positions: np.ndarray,   # shape (M, 2)
@@ -90,7 +91,7 @@ def run_cameras(
 
 def make_camera_grid(
     k: int,
-    radius: float = 0.5,
+    radius: float | Iterable[float] = 0.5,
     box_size: float = 100.0,
     offset_x: float = 0.0,
     offset_y: float = 0.0,
@@ -102,7 +103,7 @@ def make_camera_grid(
     ----------
     k : int
         Number of cameras. Must be a perfect square.
-    radius : float, default 0.5
+    radius : float or iterable, default 0.5
         Detection radius for each camera.
     box_size : float, default 100.0
         Size of the (square) arena; grid is built over [0, box_size] in x and y.
@@ -134,13 +135,16 @@ def make_camera_grid(
     ys = ys.ravel() + offset_y
 
     cam_positions = np.column_stack((xs, ys))   # (k, 2)
-    cam_radii = np.full(k, radius, dtype=float)
+    if not isinstance(radius, IterableObj):
+        cam_radii = np.full(k, radius, dtype=float)
+    else:
+        cam_radii = radius
 
     return cam_positions, cam_radii
 
 def create_cameras(
     k: int,
-    radius: float = 0.5,
+    radius: float | Iterable = 0.5,
     box_size: float = 100.0,
     rng: np.random.Generator | None = None,
 ):

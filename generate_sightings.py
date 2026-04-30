@@ -1,5 +1,6 @@
 # generate_sightings.py
 from __future__ import annotations
+from typing import Iterable, Tuple
 
 import os
 from pathlib import Path
@@ -11,10 +12,18 @@ import cameras
 from detections import run_cameras_on_trajectory
 
 
+CAMSETS = {}
+for s in np.arange(2,10)**2:
+    cam_radii = np.full(s, 0.3) + 0.7*np.random.random(s)# uniform from 0.3 to 1.0
+    pos, rad = cameras.make_camera_grid(s, cam_radii)
+    scams = (pos, rad)
+    CAMSETS[s] = scams
+
 def generate_all_sightings(
     *,
+    cams: Tuple | None = None,
     camera_sizes=None,
-    radius: float = 0.5,
+    radius: float | Iterable = 0.5,
     box_size: float = 100.0,
     seed_base: int = 1234,
 ):
@@ -31,10 +40,12 @@ def generate_all_sightings(
 
     Parameters
     ----------
+    cams: dict, pre-made camera positions and radii. If None, automatically generates
+        camera locations.
     camera_sizes : list[int], optional
         List of camera-grid sizes (must be perfect squares).
         Default = [4, 9, 16, 25, 36, 49, 64, 81].
-    radius : float, default 0.5
+    radius : float or iterable, default 0.5
         Camera detection radius.
     box_size : float, default 100.0
         Arena width/height.
@@ -48,6 +59,14 @@ def generate_all_sightings(
     traj_root = Path(config.DATA) / "trajectories"
     sightings_root = Path(config.DATA) / "sightings"
     cameras_root = Path(config.DATA) / "cameras"
+    if cams is not None:
+        cameras_root.mkdir(parents=True, exist_ok=True)
+        for s in camera_sizes:
+            file = np.hstack((cams[s][0], cams[s][1][..., None]))
+            fname = cameras_root / f"global_ncams_{s}.parquet"
+            pd.DataFrame(file, columns=["x", "y",
+                                        "r"]).to_parquet(fname)
+            print("saved", fname)
 
     for N_dir in traj_root.iterdir():
         if not N_dir.is_dir():
@@ -63,6 +82,8 @@ def generate_all_sightings(
             sight_dir.mkdir(parents=True, exist_ok=True)
             cam_dir.mkdir(parents=True, exist_ok=True)
 
+
+
             # Loop over all sim_XXX.npy files
             for npy_file in sorted(cond_dir.glob("sim_*.npy")):
 
@@ -76,24 +97,30 @@ def generate_all_sightings(
                 for k in camera_sizes:
 
                     # === Run camera sightings ===
-                    df_sight, cam_positions, _ = run_cameras_on_trajectory(
-                        traj_path=npy_file,
-                        m=k,
-                        radius=radius,
-                        box_size=box_size,
-                        seed=seed_for_this_sim,
-                    )
+                    if cams is None:
+                        df_sight, cam_positions, _ = run_cameras_on_trajectory(
+                            traj_path=npy_file,
+                            m=k,
+                            radius=radius,
+                            box_size=box_size,
+                            seed=seed_for_this_sim,
+                        )
+                    else:
+                        df_sight, _, _ = run_cameras_on_trajectory(
+                            traj_path=npy_file,
+                            cams=cams[k]
+                        )
 
                     # === Save sightings ===
                     sight_out = sight_dir / f"{base}_ncams_{k}.parquet"
                     df_sight.to_parquet(sight_out, index=False)
+                    print(f"Saved: {sight_out}")
 
                     # === Save camera positions ===
-                    cam_out = cam_dir / f"{base}_ncams_{k}.parquet"
-                    pd.DataFrame(cam_positions, columns=["x", "y"]).to_parquet(cam_out, index=False)
-
-                    print(f"Saved: {sight_out}")
-                    print(f"Saved: {cam_out}")
+                    if cams is None:
+                        cam_out = cam_dir / f"{base}_ncams_{k}.parquet"
+                        pd.DataFrame(cam_positions, columns=["x", "y"]).to_parquet(cam_out, index=False)
+                        print(f"Saved: {cam_out}")
 
 if __name__ == "__main__":
-    generate_all_sightings()
+    generate_all_sightings(cams=CAMSETS)
